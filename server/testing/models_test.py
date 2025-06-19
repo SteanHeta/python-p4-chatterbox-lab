@@ -1,32 +1,39 @@
+import pytest
 from datetime import datetime
+from server.app import create_app
+from server.models import db, Message
 
-from app import app
-from models import db, Message
-
-class TestMessage:
-    '''Message model in models.py'''
-
+@pytest.fixture
+def app():
+    app = create_app()
     with app.app_context():
-        m = Message.query.filter(
-            Message.body == "Hello 👋"
-            ).filter(Message.username == "Liza")
+        db.create_all()
+        yield app
+        db.session.remove()
+        db.drop_all()
 
-        for message in m:
-            db.session.delete(message)
+@pytest.fixture
+def client(app):
+    return app.test_client()
 
-        db.session.commit()
+def test_message_model_has_correct_columns(app):
+    """has columns for message body, username, and creation time"""
+    message = Message(body="Hello 👋", username="Liza")
+    db.session.add(message)
+    db.session.commit()
 
-    def test_has_correct_columns(self):
-        '''has columns for message body, username, and creation time.'''
-        with app.app_context():
+    assert message.id is not None
+    assert message.body == "Hello 👋"
+    assert message.username == "Liza"
+    assert isinstance(message.created_at, datetime)
 
-            hello_from_liza = Message(
-                body="Hello 👋",
-                username="Liza")
-            
-            db.session.add(hello_from_liza)
-            db.session.commit()
+def test_message_model_to_dict(app):
+    """returns dictionary representation of the message"""
+    message = Message(body="Testing", username="TestUser")
+    db.session.add(message)
+    db.session.commit()
 
-            assert(hello_from_liza.body == "Hello 👋")
-            assert(hello_from_liza.username == "Liza")
-            assert(type(hello_from_liza.created_at) == datetime)
+    message_dict = message.to_dict()
+    assert isinstance(message_dict, dict)
+    assert message_dict['body'] == "Testing"
+    assert message_dict['username'] == "TestUser"
